@@ -67,6 +67,13 @@ class CameraAgent(BaseAgent):
     # ── public interface ───────────────────────────────────────────────────────
 
     async def run(self, *, lat: float, lon: float, image_url: str | None = None, **_) -> CameraResult:
+        if settings.is_mock:
+            return CameraResult(
+                confidence=0.87,
+                detected=True,
+                image_url=image_url or "https://mock.alertcalifornia.org/cam001.jpg",
+                raw={"cameras": [{"id": "mock-cam-001", "name": "Mock Ridge Cam"}]},
+            )
         raw = await self._fetch_alertca(lat, lon)
 
         # Use caller-supplied URL or fall back to nearest AlertCA camera image

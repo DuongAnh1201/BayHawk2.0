@@ -56,6 +56,14 @@ class OutputAgent(BaseAgent):
         **_,
     ) -> OutputResult:
         incident_id = str(uuid.uuid4())
+        if settings.is_mock:
+            logger.info("Mock mode – skipping real notification for incident %s", incident_id)
+            return OutputResult(
+                notification_sent=False,
+                dashboard_updated=False,
+                incident_id=incident_id,
+                logged=True,
+            )
         notification_sent = await self._send_notification(suggestion, classification, incident_id)
 
         logger.info(
