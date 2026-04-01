@@ -3,7 +3,14 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from app.services.ai.schemas.pipeline import AlertEvent, ConfirmationStatus, PipelineResult
+from app.services.ai.schemas.pipeline import (
+    AlertEvent,
+    CameraResult,
+    ConfirmationStatus,
+    PipelineResult,
+    SatelliteResult,
+    WeatherResult,
+)
 
 from .base import BaseAgent
 from .camera import CameraAgent
@@ -37,11 +44,43 @@ class OrchestratorAgent(BaseAgent):
 
         # ── Stage 1: parallel data collection ─────────────────────────────────
         logger.info("[%s] Stage 1 – camera / satellite / weather", event.event_id)
-        camera_res, satellite_res, weather_res = await asyncio.gather(
+        gather_out = await asyncio.gather(
             self.camera.run(**coords, image_url=event.image_url),
             self.satellite.run(**coords),
             self.weather.run(**coords),
+            return_exceptions=True,
         )
+        camera_res, satellite_res, weather_res = gather_out
+        if isinstance(camera_res, asyncio.CancelledError):
+            raise camera_res
+        if isinstance(satellite_res, asyncio.CancelledError):
+            raise satellite_res
+        if isinstance(weather_res, asyncio.CancelledError):
+            raise weather_res
+        if isinstance(camera_res, BaseException):
+            logger.exception("[%s] Camera agent raised; using empty result", event.event_id, exc_info=camera_res)
+            camera_res = CameraResult(
+                confidence=0.0,
+                detected=False,
+                image_url=None,
+                raw={"error": "agent_exception", "detail": repr(camera_res)},
+            )
+        if isinstance(satellite_res, BaseException):
+            logger.exception("[%s] Satellite agent raised; using empty result", event.event_id, exc_info=satellite_res)
+            satellite_res = SatelliteResult(
+                thermal_confidence=0.0,
+                hotspot_detected=False,
+                raw={"error": "agent_exception", "detail": repr(satellite_res)},
+            )
+        if isinstance(weather_res, BaseException):
+            logger.exception("[%s] Weather agent raised; using empty result", event.event_id, exc_info=weather_res)
+            weather_res = WeatherResult(
+                wind_speed=0.0,
+                wind_direction=0.0,
+                humidity=0.0,
+                spread_risk=0.0,
+                raw={"error": "agent_exception", "detail": repr(weather_res)},
+            )
         result.camera = camera_res
         result.satellite = satellite_res
         result.weather = weather_res
