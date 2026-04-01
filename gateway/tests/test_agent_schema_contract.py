@@ -65,40 +65,35 @@ def _assert_weather_contract(r: WeatherResult) -> None:
 
 
 @pytest.mark.asyncio
-async def test_camera_schema_success_with_alertca_and_yolo():
-    alert_payload = {"cameras": [{"image_url": "https://example.com/still.jpg"}]}
+async def test_camera_schema_success_with_firms():
+    firms_payload = {"data": [{"frp": 73.0, "latitude": "37.8", "longitude": "-122.4"}]}
     with (
         patch(
-            "app.services.ai.agents.camera.httpx_get_json",
+            "app.services.ai.agents.camera.fetch_firms_area_json",
             new_callable=AsyncMock,
-            return_value=alert_payload,
+            return_value=firms_payload,
         ),
-        patch.object(CameraAgent, "_run_yolo", new_callable=AsyncMock, return_value=(0.73, True)),
-        patch("app.services.ai.agents.camera.settings.alertca_api_key", "token"),
+        patch("app.services.ai.agents.camera.settings.nasa_firms_map_key", "token"),
     ):
         r = await CameraAgent().run(lat=37.8, lon=-122.4)
 
     _assert_camera_contract(r)
     assert r.detected is True
     assert r.confidence == pytest.approx(0.73)
-    assert r.image_url == "https://example.com/still.jpg"
-    assert r.raw == alert_payload
+    assert r.image_url is None
+    assert r.raw.get("source") == "nasa_firms"
+    assert r.raw.get("hotspots") == firms_payload["data"]
     assert r.telemetry["http_max_attempts"] >= 1
 
 
 @pytest.mark.asyncio
 async def test_camera_schema_event_image_only():
     with (
-        patch(
-            "app.services.ai.agents.camera.httpx_get_json",
-            new_callable=AsyncMock,
-        ) as gj,
         patch.object(CameraAgent, "_run_yolo", new_callable=AsyncMock, return_value=(0.1, False)),
-        patch("app.services.ai.agents.camera.settings.alertca_api_key", ""),
+        patch("app.services.ai.agents.camera.settings.nasa_firms_map_key", ""),
     ):
         r = await CameraAgent().run(lat=37.0, lon=-122.0, image_url="https://x/y.jpg")
 
-    gj.assert_not_called()
     _assert_camera_contract(r)
     assert r.confidence == pytest.approx(0.1)
     assert r.detected is False
@@ -108,14 +103,15 @@ async def test_camera_schema_event_image_only():
 
 @pytest.mark.asyncio
 async def test_camera_schema_missing_key_degraded():
-    with patch("app.services.ai.agents.camera.settings.alertca_api_key", ""):
+    with patch("app.services.ai.agents.camera.settings.nasa_firms_map_key", ""):
         r = await CameraAgent().run(lat=37.0, lon=-122.0, image_url=None)
 
     _assert_camera_contract(r)
     assert r.confidence == 0.0
     assert r.detected is False
     assert r.image_url is None
-    assert r.raw.get("error") == "missing ALERTCA_API_KEY"
+    assert r.raw.get("error") == "missing NASA_FIRMS_MAP_KEY"
+    assert r.raw.get("location", {}).get("incident_lat") == pytest.approx(37.0)
 
 
 # --- Satellite --------------------------------------------------------------
@@ -126,7 +122,7 @@ async def test_satellite_schema_with_hotspots():
     firms = {"data": [{"frp": 45.0, "latitude": "37", "longitude": "-122"}]}
     with (
         patch(
-            "app.services.ai.agents.satellite.httpx_get_json",
+            "app.services.ai.agents.satellite.fetch_firms_area_json",
             new_callable=AsyncMock,
             return_value=firms,
         ),
@@ -140,14 +136,17 @@ async def test_satellite_schema_with_hotspots():
     assert r.thermal_confidence == pytest.approx(min(45.0 / 100.0, 1.0))
     assert isinstance(r.raw["hotspots"], list)
     assert len(r.raw["hotspots"]) == 1
+    assert r.raw.get("location", {}).get("incident_lat") == pytest.approx(37.5)
+    assert r.raw["location"].get("bbox_wsen")
     assert r.telemetry.get("cache_hit") is False
+    assert r.telemetry.get("location", {}).get("focus_radius_km") is not None
 
 
 @pytest.mark.asyncio
 async def test_satellite_schema_empty_and_missing_key():
     with (
         patch(
-            "app.services.ai.agents.satellite.httpx_get_json",
+            "app.services.ai.agents.satellite.fetch_firms_area_json",
             new_callable=AsyncMock,
             return_value={"data": []},
         ),

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import logging
 import uuid
 
 import httpx
+import logfire
 
 from app.config import settings
 from app.services.ai.schemas.pipeline import (
@@ -14,8 +14,6 @@ from app.services.ai.schemas.pipeline import (
 )
 
 from .base import BaseAgent
-
-logger = logging.getLogger(__name__)
 
 
 class OutputAgent(BaseAgent):
@@ -28,7 +26,7 @@ class OutputAgent(BaseAgent):
         incident_id: str,
     ) -> bool:
         if not settings.dashboard_webhook_url:
-            logger.warning("DASHBOARD_WEBHOOK_URL not configured – skipping notification.")
+            logfire.warn("DASHBOARD_WEBHOOK_URL not configured – skipping notification")
             return False
 
         payload = {
@@ -44,7 +42,7 @@ class OutputAgent(BaseAgent):
                 resp.raise_for_status()
             return True
         except Exception as exc:
-            logger.error("Notification delivery failed: %s", exc)
+            logfire.error("notification failed: {error}", error=str(exc))
             return False
 
     async def run(
@@ -56,27 +54,28 @@ class OutputAgent(BaseAgent):
         **_,
     ) -> OutputResult:
         incident_id = str(uuid.uuid4())
-        if settings.is_mock:
-            logger.info("Mock mode – skipping real notification for incident %s", incident_id)
+
+        with logfire.span(
+            "agent.output",
+            event_id=event.event_id,
+            incident_id=incident_id,
+            criticality=classification.criticality.value,
+            is_mock=settings.is_mock,
+        ):
+            if settings.is_mock:
+                logfire.info("output mock – skipping webhook for incident {id}", id=incident_id)
+                return OutputResult(
+                    notification_sent=False,
+                    dashboard_updated=False,
+                    incident_id=incident_id,
+                    logged=True,
+                )
+
+            notification_sent = await self._send_notification(suggestion, classification, incident_id)
+            logfire.info("output: incident={id} notification={sent}", id=incident_id, sent=notification_sent)
             return OutputResult(
-                notification_sent=False,
-                dashboard_updated=False,
+                notification_sent=notification_sent,
+                dashboard_updated=notification_sent,
                 incident_id=incident_id,
                 logged=True,
             )
-        notification_sent = await self._send_notification(suggestion, classification, incident_id)
-
-        logger.info(
-            "Incident %s | event=%s | criticality=%s | notification=%s",
-            incident_id,
-            event.event_id,
-            classification.criticality.value,
-            notification_sent,
-        )
-
-        return OutputResult(
-            notification_sent=notification_sent,
-            dashboard_updated=notification_sent,
-            incident_id=incident_id,
-            logged=True,
-        )

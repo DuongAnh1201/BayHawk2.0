@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import logfire
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
@@ -48,7 +49,7 @@ class _Deps:
 
 def _build_model() -> OpenAIChatModel:
     return OpenAIChatModel(
-        "gpt-4o",
+        settings.openai_model,
         provider=OpenAIProvider(api_key=settings.openai_api_key),
     )
 
@@ -84,11 +85,13 @@ class SuggestionAgent(BaseAgent):
         weather: WeatherResult,
         **_,
     ) -> SuggestionResult:
-        if settings.is_mock:
-            return _MOCK_RESULT
+        with logfire.span("agent.suggestion", is_mock=settings.is_mock):
+            if settings.is_mock:
+                logfire.info("suggestion mock – returning hardcoded action plan")
+                return _MOCK_RESULT
 
-        result = await _agent.run(
-            "Generate the response plan and alert message for this incident.",
-            deps=_Deps(classification=classification, reasoning=reasoning, weather=weather),
-        )
-        return result.output
+            result = await _agent.run(
+                "Generate the response plan and alert message for this incident.",
+                deps=_Deps(classification=classification, reasoning=reasoning, weather=weather),
+            )
+            return result.output

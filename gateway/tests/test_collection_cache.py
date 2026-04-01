@@ -39,13 +39,13 @@ async def test_satellite_cache_second_hit(monkeypatch):
     monkeypatch.setattr(settings, "nasa_firms_map_key", "mapkey")
     firms = {"data": [{"frp": 10.0}]}
     with patch(
-        "app.services.ai.agents.satellite.httpx_get_json",
+        "app.services.ai.agents.satellite.fetch_firms_area_json",
         new_callable=AsyncMock,
         return_value=firms,
-    ) as get_json:
+    ) as firms_fetch:
         agent = SatelliteAgent()
         r1 = await agent.run(lat=37.0, lon=-122.0)
         r2 = await agent.run(lat=37.0, lon=-122.0)
-    assert get_json.await_count == 1
+    assert firms_fetch.await_count == 1
     assert r1.telemetry.get("cache_hit") is False
     assert r2.telemetry.get("cache_hit") is True

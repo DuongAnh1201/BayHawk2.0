@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+import logfire
 from pydantic_ai import Agent, ImageUrl, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
@@ -41,7 +42,7 @@ class _Deps:
 
 def _build_model() -> OpenAIChatModel:
     return OpenAIChatModel(
-        "gpt-4o",
+        settings.openai_model,
         provider=OpenAIProvider(api_key=settings.openai_api_key),
     )
 
@@ -85,15 +86,17 @@ class ReasoningAgent(BaseAgent):
         satellite: SatelliteResult,
         **_,
     ) -> ReasoningResult:
-        if settings.is_mock:
-            return _MOCK_RESULT
+        with logfire.span("agent.reasoning", is_mock=settings.is_mock):
+            if settings.is_mock:
+                logfire.info("reasoning mock – returning hardcoded scene description")
+                return _MOCK_RESULT
 
-        prompt: list = ["Analyze this wildfire scene and provide your structured observations."]
-        if image_url:
-            prompt.insert(0, ImageUrl(url=image_url))
+            prompt: list = ["Analyze this wildfire scene and provide your structured observations."]
+            if image_url:
+                prompt.insert(0, ImageUrl(url=image_url))
 
-        result = await _agent.run(
-            prompt,
-            deps=_Deps(weather=weather, confirmation=confirmation, satellite=satellite),
-        )
-        return result.output
+            result = await _agent.run(
+                prompt,
+                deps=_Deps(weather=weather, confirmation=confirmation, satellite=satellite),
+            )
+            return result.output

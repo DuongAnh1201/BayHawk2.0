@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ConfirmationStatus(str, Enum):
@@ -25,6 +25,13 @@ class AlertEvent(BaseModel):
     camera_id: Optional[str] = None
     image_url: Optional[str] = None
     timestamp: str
+    focus_radius_km: Optional[float] = Field(
+        default=None,
+        description=(
+            "Optional radius (km) for multi-camera focus and for location metadata on camera/satellite stages. "
+            "Omit to use server FOCUS_RADIUS_KM."
+        ),
+    )
 
 
 class CameraResult(BaseModel):

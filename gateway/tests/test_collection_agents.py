@@ -13,58 +13,60 @@ from app.services.ai.agents.weather import WeatherAgent
 
 
 @pytest.mark.asyncio
-async def test_camera_agent_alertca_and_yolo():
-    alert_payload = {"cameras": [{"image_url": "https://example.com/cam.jpg", "id": "1"}]}
+async def test_camera_agent_firms_local_bbox():
+    """Default path: NASA FIRMS Area API around incident (no ``image_url``)."""
+    firms_payload = {"data": [{"frp": 82.0, "latitude": "37.8", "longitude": "-122.4"}]}
 
     with (
         patch(
-            "app.services.ai.agents.camera.httpx_get_json",
+            "app.services.ai.agents.camera.fetch_firms_area_json",
             new_callable=AsyncMock,
-            return_value=alert_payload,
+            return_value=firms_payload,
         ),
-        patch.object(CameraAgent, "_run_yolo", new_callable=AsyncMock, return_value=(0.82, True)),
-        patch("app.services.ai.agents.camera.settings.alertca_api_key", "test-token"),
+        patch("app.services.ai.agents.camera.settings.nasa_firms_map_key", "map-key"),
     ):
         agent = CameraAgent()
         result = await agent.run(lat=37.8, lon=-122.4)
 
     assert result.detected is True
     assert result.confidence == pytest.approx(0.82)
-    assert result.image_url == "https://example.com/cam.jpg"
-    assert result.raw == alert_payload
+    assert result.image_url is None
+    assert result.raw.get("source") == "nasa_firms"
+    assert result.raw.get("hotspots") == firms_payload["data"]
     assert result.latency_ms is not None
 
 
 @pytest.mark.asyncio
-async def test_camera_agent_uses_explicit_image_url_skips_alertca():
-    """When ``image_url`` is set, do not call ALERTCalifornia (faster, works without key)."""
+async def test_camera_agent_uses_explicit_image_url_skips_firms():
+    """When ``image_url`` is set, do not call FIRMS; run YOLO only."""
 
     with (
-        patch("app.services.ai.agents.camera.httpx_get_json", new_callable=AsyncMock) as get_json,
+        patch("app.services.ai.agents.camera.fetch_firms_area_json", new_callable=AsyncMock) as firms_fetch,
         patch("app.services.ai.agents.camera.httpx_get_bytes", new_callable=AsyncMock) as get_bytes,
         patch.object(CameraAgent, "_run_yolo", new_callable=AsyncMock, return_value=(0.5, True)),
-        patch("app.services.ai.agents.camera.settings.alertca_api_key", ""),
+        patch("app.services.ai.agents.camera.settings.nasa_firms_map_key", ""),
     ):
         agent = CameraAgent()
         result = await agent.run(lat=37.0, lon=-122.0, image_url="https://override.com/x.jpg")
 
-    get_json.assert_not_called()
+    firms_fetch.assert_not_called()
     get_bytes.assert_not_called()
     assert result.image_url == "https://override.com/x.jpg"
     assert result.confidence == pytest.approx(0.5)
-    assert result.raw == {"source": "event_image_url"}
+    assert result.raw.get("source") == "event_image_url"
+    assert result.raw.get("location", {}).get("incident_lat") == pytest.approx(37.0)
 
 
 @pytest.mark.asyncio
-async def test_camera_agent_no_image_zero_confidence():
+async def test_camera_agent_no_hotspots_zero_confidence():
     with (
         patch(
-            "app.services.ai.agents.camera.httpx_get_json",
+            "app.services.ai.agents.camera.fetch_firms_area_json",
             new_callable=AsyncMock,
-            return_value={"cameras": []},
+            return_value={"data": []},
         ),
         patch.object(CameraAgent, "_run_yolo", new_callable=AsyncMock) as yolo,
-        patch("app.services.ai.agents.camera.settings.alertca_api_key", "test-token"),
+        patch("app.services.ai.agents.camera.settings.nasa_firms_map_key", "test-token"),
     ):
         agent = CameraAgent()
         result = await agent.run(lat=37.0, lon=-122.0)
@@ -75,25 +77,25 @@ async def test_camera_agent_no_image_zero_confidence():
 
 
 @pytest.mark.asyncio
-async def test_camera_agent_missing_key_no_image():
-    with patch("app.services.ai.agents.camera.httpx_get_json", new_callable=AsyncMock) as get_json:
+async def test_camera_agent_missing_firms_key_no_image():
+    with patch("app.services.ai.agents.camera.fetch_firms_area_json", new_callable=AsyncMock) as firms_fetch:
         result = await CameraAgent().run(lat=37.0, lon=-122.0, image_url=None)
 
-    get_json.assert_not_called()
+    firms_fetch.assert_not_called()
     assert result.confidence == 0.0
-    assert result.raw and "missing ALERTCA_API_KEY" in result.raw.get("error", "")
+    assert result.raw and "missing NASA_FIRMS_MAP_KEY" in result.raw.get("error", "")
 
 
 @pytest.mark.asyncio
-async def test_camera_agent_alertca_http_error():
+async def test_camera_agent_firms_http_error():
     with (
         patch(
-            "app.services.ai.agents.camera.httpx_get_json",
+            "app.services.ai.agents.camera.fetch_firms_area_json",
             new_callable=AsyncMock,
             side_effect=httpx.RequestError("upstream failure"),
         ),
         patch.object(CameraAgent, "_run_yolo", new_callable=AsyncMock) as yolo,
-        patch("app.services.ai.agents.camera.settings.alertca_api_key", "x"),
+        patch("app.services.ai.agents.camera.settings.nasa_firms_map_key", "x"),
     ):
         result = await CameraAgent().run(lat=37.0, lon=-122.0)
 
@@ -109,7 +111,7 @@ async def test_satellite_agent_hotspots_dict_payload():
 
     with (
         patch(
-            "app.services.ai.agents.satellite.httpx_get_json",
+            "app.services.ai.agents.satellite.fetch_firms_area_json",
             new_callable=AsyncMock,
             return_value=firms_payload,
         ),
@@ -125,7 +127,7 @@ async def test_satellite_agent_hotspots_dict_payload():
 
 @pytest.mark.asyncio
 async def test_satellite_agent_missing_map_key():
-    with patch("app.services.ai.agents.satellite.httpx_get_json", new_callable=AsyncMock) as get_json:
+    with patch("app.services.ai.agents.satellite.fetch_firms_area_json", new_callable=AsyncMock) as get_json:
         result = await SatelliteAgent().run(lat=1.0, lon=1.0)
 
     get_json.assert_not_called()
@@ -139,7 +141,7 @@ async def test_satellite_agent_hotspots_list_payload_capped():
 
     with (
         patch(
-            "app.services.ai.agents.satellite.httpx_get_json",
+            "app.services.ai.agents.satellite.fetch_firms_area_json",
             new_callable=AsyncMock,
             return_value=firms_payload,
         ),
@@ -155,7 +157,7 @@ async def test_satellite_agent_hotspots_list_payload_capped():
 async def test_satellite_agent_no_hotspots():
     with (
         patch(
-            "app.services.ai.agents.satellite.httpx_get_json",
+            "app.services.ai.agents.satellite.fetch_firms_area_json",
             new_callable=AsyncMock,
             return_value={"data": []},
         ),

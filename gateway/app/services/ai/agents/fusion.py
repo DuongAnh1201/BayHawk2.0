@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logfire
+
 from app.config import settings
 from app.services.ai.schemas.pipeline import (
     CameraResult,
@@ -29,7 +31,6 @@ class FusionAgent(BaseAgent):
             camera.confidence * w_cam + satellite.thermal_confidence * w_therm,
             4,
         )
-
         both_positive = camera.detected and satellite.hotspot_detected
 
         if combined >= threshold or both_positive:
@@ -52,4 +53,5 @@ class FusionAgent(BaseAgent):
             "both_positive_override": both_positive,
         }
 
+        logfire.info("fusion: {status} score={score}", status=status.value, score=combined)
         return FusionResult(status=status, combined_score=combined, reason=reason, telemetry=telemetry)
