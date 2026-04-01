@@ -32,12 +32,16 @@ class CameraResult(BaseModel):
     detected: bool
     image_url: Optional[str] = None
     raw: Optional[Dict[str, Any]] = None
+    latency_ms: Optional[float] = None  # wall time for this agent (for SLO / debugging)
+    telemetry: Optional[Dict[str, Any]] = None
 
 
 class SatelliteResult(BaseModel):
     thermal_confidence: float       # 0.0 – 1.0
     hotspot_detected: bool
     raw: Optional[Dict[str, Any]] = None
+    latency_ms: Optional[float] = None
+    telemetry: Optional[Dict[str, Any]] = None
 
 
 class WeatherResult(BaseModel):
@@ -46,12 +50,15 @@ class WeatherResult(BaseModel):
     humidity: float                 # %
     spread_risk: float              # 0.0 – 1.0 calculated heuristic
     raw: Optional[Dict[str, Any]] = None
+    latency_ms: Optional[float] = None
+    telemetry: Optional[Dict[str, Any]] = None
 
 
 class FusionResult(BaseModel):
     status: ConfirmationStatus
     combined_score: float
     reason: str
+    telemetry: Optional[Dict[str, Any]] = None
 
 
 class ReasoningResult(BaseModel):

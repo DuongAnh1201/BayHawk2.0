@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from app.config import settings
 from app.services.ai.schemas.pipeline import (
     CameraResult,
     ConfirmationStatus,
@@ -6,8 +9,6 @@ from app.services.ai.schemas.pipeline import (
 )
 
 from .base import BaseAgent
-
-_THRESHOLD = 0.40   # combined score required for CONFIRMED
 
 
 class FusionAgent(BaseAgent):
@@ -20,22 +21,35 @@ class FusionAgent(BaseAgent):
         satellite: SatelliteResult,
         **_,
     ) -> FusionResult:
-        # Weighted combination: camera YOLOv8 60% + thermal 40%
-        combined = round(camera.confidence * 0.6 + satellite.thermal_confidence * 0.4, 4)
+        w_cam = settings.fusion_camera_weight
+        w_therm = round(1.0 - w_cam, 4)
+        threshold = settings.fusion_threshold
+
+        combined = round(
+            camera.confidence * w_cam + satellite.thermal_confidence * w_therm,
+            4,
+        )
 
         both_positive = camera.detected and satellite.hotspot_detected
 
-        if combined >= _THRESHOLD or both_positive:
+        if combined >= threshold or both_positive:
             status = ConfirmationStatus.CONFIRMED
             reason = (
-                f"Combined score {combined:.2f} meets threshold. "
+                f"Combined score {combined:.2f} meets threshold {threshold:.2f}. "
                 f"Camera detected={camera.detected}, thermal hotspot={satellite.hotspot_detected}."
             )
         else:
             status = ConfirmationStatus.DISMISSED
             reason = (
-                f"Combined score {combined:.2f} below threshold {_THRESHOLD}. "
+                f"Combined score {combined:.2f} below threshold {threshold:.2f}. "
                 "Insufficient evidence of fire."
             )
 
-        return FusionResult(status=status, combined_score=combined, reason=reason)
+        telemetry = {
+            "fusion_threshold": threshold,
+            "weight_camera": w_cam,
+            "weight_thermal": w_therm,
+            "both_positive_override": both_positive,
+        }
+
+        return FusionResult(status=status, combined_score=combined, reason=reason, telemetry=telemetry)
