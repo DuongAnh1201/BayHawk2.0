@@ -6,10 +6,12 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.135.2",
+    "uvicorn>=0.30.0",
     "httpx>=0.27.0",
     "python-dotenv>=1.0.0",
     "pydantic[email]>=2.0.0",
-    "anthropic>=0.40.0",
+    "pydantic-ai>=1.75.0",
+    "openai>=1.0.0",
     "ultralytics>=8.0.0",
 ]
 
@@ -23,23 +25,4 @@ dev = [
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 pythonpath = ["gateway"]
-testpaths = ["gateway/tests"    "pydantic-ai>=1.0.0",
-    "httpx>=0.27.0",
-    "ultralytics>=8.0.0",
-    "python-dotenv>=1.0.0",
-    "python-jose[cryptography]>=3.3.0",
-    "passlib[bcrypt]>=1.7.4",
-    "sqlalchemy[asyncio]>=2.0.0",
-    "aiosqlite>=0.20.0",
-    "logfire>=4.31.0",
-]
-
-[dependency-groups]
-dev = [
-    "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0",
-]
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
+testpaths = ["gateway/tests"]

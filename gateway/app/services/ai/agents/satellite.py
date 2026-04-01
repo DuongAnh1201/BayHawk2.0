@@ -9,6 +9,7 @@ California falls entirely within valid bounds for this product.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
 from typing import Any
@@ -19,6 +20,8 @@ from app.config import settings
 from app.services.ai.schemas.pipeline import SatelliteResult
 
 from .base import BaseAgent
+from .collection_cache import get_named_cache
+from .geo_hints import log_if_outside_california
 from .http_retry import httpx_get_json
 
 logger = logging.getLogger(__name__)
@@ -34,6 +37,12 @@ def _frp_value(hotspot: dict[str, Any]) -> float | None:
         return None
 
 
+def _satellite_cache_key(lat: float, lon: float, bbox_half: float, map_key: str) -> str:
+    west, south, east, north = lon - bbox_half, lat - bbox_half, lon + bbox_half, lat + bbox_half
+    raw = f"{west:.5f},{south:.5f},{east:.5f},{north:.5f}|{map_key}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:32]
+
+
 class SatelliteAgent(BaseAgent):
     name = "satellite"
 
@@ -47,11 +56,45 @@ class SatelliteAgent(BaseAgent):
                 latency_ms=round((time.perf_counter() - t0) * 1000, 2),
                 telemetry={"bbox_half_deg": 0.1},
             )
+        log_if_outside_california(lat, lon, context="satellite")
         # NASA FIRMS – active fire / hotspot data (VIIRS SNPP Near-Real-Time)
-        bbox_half = 0.1
+        bbox_half = settings.firms_bbox_half_deg
         max_attempts = settings.collection_http_max_attempts
         frp_norm = settings.firms_frp_normalize
-        bbox = f"{lon - bbox_half},{lat - bbox_half},{lon + bbox_half},{lat + bbox_half}"
+
+        if not (settings.nasa_firms_map_key or "").strip():
+            logger.warning("NASA_FIRMS_MAP_KEY missing; satellite stage skipped")
+            return SatelliteResult(
+                thermal_confidence=0.0,
+                hotspot_detected=False,
+                raw={"error": "missing NASA_FIRMS_MAP_KEY"},
+                latency_ms=round((time.perf_counter() - t0) * 1000, 2),
+                telemetry={
+                    "http_max_attempts": max_attempts,
+                    "bbox_half_deg": bbox_half,
+                    "frp_normalize": frp_norm,
+                },
+            )
+
+        cache = get_named_cache("satellite_firms", settings.collection_cache_ttl_sec)
+        ckey = _satellite_cache_key(lat, lon, bbox_half, settings.nasa_firms_map_key)
+        if cache is not None:
+            cached = await cache.get(ckey)
+            if cached is not None:
+                return cached.model_copy(
+                    deep=True,
+                    update={
+                        "latency_ms": round((time.perf_counter() - t0) * 1000, 2),
+                        "telemetry": {
+                            **(cached.telemetry or {}),
+                            "cache_hit": True,
+                            "api_calls_saved": 1,
+                        },
+                    },
+                )
+
+        west, south, east, north = lon - bbox_half, lat - bbox_half, lon + bbox_half, lat + bbox_half
+        bbox = f"{west},{south},{east},{north}"
         url = (
             f"https://firms.modaps.eosdis.nasa.gov/api/area/json/"
             f"{settings.nasa_firms_map_key}/VIIRS_SNPP_NRT/{bbox}/1"
@@ -94,7 +137,7 @@ class SatelliteAgent(BaseAgent):
             if frp_values:
                 thermal_confidence = min(max(frp_values) / frp_norm, 1.0)
 
-        return SatelliteResult(
+        result = SatelliteResult(
             thermal_confidence=thermal_confidence,
             hotspot_detected=hotspot_detected,
             raw={"hotspots": hotspots},
@@ -103,5 +146,11 @@ class SatelliteAgent(BaseAgent):
                 "http_max_attempts": max_attempts,
                 "bbox_half_deg": bbox_half,
                 "frp_normalize": frp_norm,
+                "cache_hit": False,
             },
         )
+
+        if cache is not None:
+            await cache.set(ckey, result)
+
+        return result

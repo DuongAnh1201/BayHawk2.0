@@ -21,12 +21,14 @@ import tempfile
 import time
 from typing import Any
 
+import httpx
 from ultralytics import YOLO
 
 from app.config import settings
 from app.services.ai.schemas.pipeline import CameraResult
 
 from .base import BaseAgent
+from .geo_hints import log_if_outside_california
 from .http_retry import httpx_get_bytes, httpx_get_json
 
 logger = logging.getLogger(__name__)
@@ -149,8 +151,37 @@ class CameraAgent(BaseAgent):
                     "yolo_imgsz": settings.yolo_inference_imgsz,
                 },
             )
-        raw = await self._fetch_alertca(lat, lon)
-        url = image_url or first_camera_image_url(raw)
+        log_if_outside_california(lat, lon, context="camera")
+
+        raw: dict[str, Any] = {}
+        url = image_url
+
+        if url:
+            raw = {"source": "event_image_url"}
+        else:
+            if not (settings.alertca_api_key or "").strip():
+                logger.warning("ALERTCA_API_KEY missing and no image_url; camera stage skipped")
+                return CameraResult(
+                    confidence=0.0,
+                    detected=False,
+                    image_url=None,
+                    raw={"error": "missing ALERTCA_API_KEY", "cameras": []},
+                    latency_ms=round((time.perf_counter() - t0) * 1000, 2),
+                    telemetry={
+                        "http_max_attempts": settings.collection_http_max_attempts,
+                        "yolo_imgsz": settings.yolo_inference_imgsz,
+                    },
+                )
+            try:
+                raw = await self._fetch_alertca(lat, lon)
+            except httpx.HTTPError as exc:
+                logger.warning("AlertCA HTTP error: %s", exc)
+                raw = {"error": str(exc), "cameras": []}
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.warning("AlertCA request failed: %s", exc)
+                raw = {"error": str(exc), "cameras": []}
+
+            url = first_camera_image_url(raw)
 
         confidence, detected = 0.0, False
         if url:

@@ -38,7 +38,8 @@ class Settings:
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
-    # Camera / AlertCA
+    # Camera — ALERTCalifornia (UC San Diego), California camera network:
+    #   https://alertcalifornia.org/  |  Partner API token → ALERTCA_API_KEY
     alertca_api_key: str = os.getenv("ALERTCA_API_KEY", "")
 
     # Satellite — NASA LANCE FIRMS (global; includes CA). Free MAP_KEY:
@@ -74,8 +75,19 @@ class Settings:
     # Output – webhook URL for dashboard / push notifications
     dashboard_webhook_url: str = os.getenv("DASHBOARD_WEBHOOK_URL", "")
 
-    # Mock mode – bypasses all external API / LLM calls (for testing and local dev)
+    # Mock mode – bypasses external API / LLM calls where agents support it (local dev / tests)
     is_mock: bool = os.getenv("IS_MOCK", "false").lower() == "true"
+
+    def __init__(self) -> None:
+        w = self.fusion_camera_weight
+        if not 0.05 <= w <= 0.95:
+            raise ValueError("FUSION_CAMERA_WEIGHT must be between 0.05 and 0.95")
+        if self.firms_frp_normalize <= 0:
+            raise ValueError("FIRMS_FRP_NORMALIZE must be positive")
+        if self.collection_http_max_attempts < 1:
+            raise ValueError("COLLECTION_HTTP_MAX_ATTEMPTS must be >= 1")
+        if self.yolo_inference_imgsz < 32:
+            raise ValueError("YOLO_INFERENCE_IMGSZ must be >= 32")
 
 
 settings = Settings()
