@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-import json
+from dataclasses import dataclass
 
-import anthropic
+from pydantic_ai import Agent, RunContext
+from pydantic_ai.models.openai import OpenAIChatModel
+from pydantic_ai.providers.openai import OpenAIProvider
 
 from app.config import settings
-from app.services.ai.prompt.templates import CLASSIFICATION_PROMPT
+from app.services.ai.prompt.templates import CLASSIFICATION_SYSTEM_PROMPT
 from app.services.ai.schemas.pipeline import (
     ClassificationResult,
     CriticalityLevel,
@@ -16,12 +18,48 @@ from app.services.ai.schemas.pipeline import (
 
 from .base import BaseAgent
 
+_MOCK_RESULT = ClassificationResult(
+    criticality=CriticalityLevel.HIGH,
+    score=0.82,
+    reasoning="Mock: Active spread with strong winds and critically low humidity warrants HIGH classification.",
+)
+
+
+@dataclass
+class _Deps:
+    reasoning: ReasoningResult
+    weather: WeatherResult
+    fusion: FusionResult
+
+
+def _build_model() -> OpenAIChatModel:
+    return OpenAIChatModel(
+        "gpt-4o",
+        provider=OpenAIProvider(api_key=settings.openai_api_key),
+    )
+
+
+_agent: Agent[_Deps, ClassificationResult] = Agent(
+    _build_model(),
+    deps_type=_Deps,
+    output_type=ClassificationResult,
+    system_prompt=CLASSIFICATION_SYSTEM_PROMPT,
+)
+
+
+@_agent.system_prompt
+def _incident_context(ctx: RunContext[_Deps]) -> str:
+    d = ctx.deps
+    return (
+        f"Scene description: {d.reasoning.scene_description}\n"
+        f"Key observations: {', '.join(d.reasoning.key_observations)}\n"
+        f"Weather spread risk: {d.weather.spread_risk:.2f}\n"
+        f"Combined detection score: {d.fusion.combined_score:.2f}"
+    )
+
 
 class ClassificationAgent(BaseAgent):
     name = "classification"
-
-    def __init__(self) -> None:
-        self._client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
     async def run(
         self,
@@ -31,27 +69,11 @@ class ClassificationAgent(BaseAgent):
         fusion: FusionResult,
         **_,
     ) -> ClassificationResult:
-        prompt = CLASSIFICATION_PROMPT.format(
-            scene_description=reasoning.scene_description,
-            key_observations=reasoning.key_observations,
-            spread_risk=weather.spread_risk,
-            combined_score=fusion.combined_score,
-        )
+        if settings.is_mock:
+            return _MOCK_RESULT
 
-        message = await self._client.messages.create(
-            model="claude-opus-4-6",
-            max_tokens=512,
-            messages=[{"role": "user", "content": prompt}],
+        result = await _agent.run(
+            "Classify the criticality of this wildfire incident.",
+            deps=_Deps(reasoning=reasoning, weather=weather, fusion=fusion),
         )
-
-        raw_text = message.content[0].text
-        try:
-            parsed = json.loads(raw_text)
-        except json.JSONDecodeError:
-            parsed = {"criticality": "HIGH", "score": 0.5, "reasoning": raw_text}
-
-        return ClassificationResult(
-            criticality=CriticalityLevel(parsed.get("criticality", "MEDIUM")),
-            score=float(parsed.get("score", 0.5)),
-            reasoning=parsed.get("reasoning", ""),
-        )
+        return result.output

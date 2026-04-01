@@ -12,6 +12,12 @@ class SatelliteAgent(BaseAgent):
     name = "satellite"
 
     async def run(self, *, lat: float, lon: float, **_) -> SatelliteResult:
+        if settings.is_mock:
+            return SatelliteResult(
+                thermal_confidence=0.76,
+                hotspot_detected=True,
+                raw={"hotspots": [{"frp": 76.0, "latitude": lat, "longitude": lon}]},
+            )
         # NASA FIRMS – active fire / hotspot data (VIIRS SNPP Near-Real-Time)
         bbox = f"{lon - 0.1},{lat - 0.1},{lon + 0.1},{lat + 0.1}"
         url = (

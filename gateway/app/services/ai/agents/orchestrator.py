@@ -14,7 +14,6 @@ from .reasoning import ReasoningAgent
 from .satellite import SatelliteAgent
 from .suggestion import SuggestionAgent
 from .weather import WeatherAgent
-
 logger = logging.getLogger(__name__)
 
 
@@ -60,6 +59,8 @@ class OrchestratorAgent(BaseAgent):
         reasoning_res = await self.reasoning.run(
             image_url=event.image_url,
             weather=weather_res,
+            confirmation=fusion_res.status,
+            satellite=satellite_res,
         )
         result.reasoning = reasoning_res
 

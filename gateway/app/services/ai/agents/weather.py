@@ -17,6 +17,14 @@ class WeatherAgent(BaseAgent):
         return round(wind_factor * 0.6 + humidity_factor * 0.4, 3)
 
     async def run(self, *, lat: float, lon: float, **_) -> WeatherResult:
+        if settings.is_mock:
+            return WeatherResult(
+                wind_speed=13.5,
+                wind_direction=225.0,
+                humidity=18.0,
+                spread_risk=self._spread_risk(13.5, 18.0),
+                raw={"wind": {"speed": 13.5, "deg": 225}, "main": {"humidity": 18}},
+            )
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
                 "https://api.openweathermap.org/data/2.5/weather",

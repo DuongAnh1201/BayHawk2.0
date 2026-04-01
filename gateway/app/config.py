@@ -18,9 +18,10 @@ class Settings():
     database_url: str = os.getenv("DATABASE_URL")
 
     # ── AI pipeline ────────────────────────────────────────────────────────────
-    # Vision-language model (Claude)
-    anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
-
+    # Vision-language model (OpenAI)
+    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+    
     # Camera / AlertCA
     alertca_api_key: str = os.getenv("ALERTCA_API_KEY", "")
 
@@ -35,5 +36,8 @@ class Settings():
 
     # Output – webhook URL for dashboard / push notifications
     dashboard_webhook_url: str = os.getenv("DASHBOARD_WEBHOOK_URL", "")
+
+    # Mock mode – bypasses all external API / LLM calls (for testing and local dev)
+    is_mock: bool = os.getenv("IS_MOCK", "false").lower() == "true"
 
 settings= Settings()
