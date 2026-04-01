@@ -1,1 +1,0 @@
-#ai components for the api gateway
