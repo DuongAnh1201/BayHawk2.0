@@ -1,0 +1,1 @@
+#exceptions for the api gateway

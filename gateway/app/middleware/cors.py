@@ -1,0 +1,1 @@
+#cors middleware for the api gateway
