@@ -1,3 +1,16 @@
+"""Local fire-weather context via **OpenWeatherMap** Current Weather API.
+
+Documentation:
+  https://openweathermap.org/current
+
+Coordinates are passed through from the incident (``lat``, ``lon``). For California
+operations, use WGS84 decimal degrees inside the state; the same API serves any
+location worldwide.
+"""
+from __future__ import annotations
+
+from typing import Any
+
 import httpx
 
 from app.config import settings
@@ -12,7 +25,7 @@ class WeatherAgent(BaseAgent):
     @staticmethod
     def _spread_risk(wind_speed: float, humidity: float) -> float:
         """Heuristic: high wind + low humidity → high spread risk (0–1)."""
-        wind_factor = min(wind_speed / 20.0, 1.0)          # 20 m/s → 1.0
+        wind_factor = min(wind_speed / 20.0, 1.0)  # 20 m/s → 1.0
         humidity_factor = max(1.0 - humidity / 100.0, 0.0)
         return round(wind_factor * 0.6 + humidity_factor * 0.4, 3)
 
@@ -36,10 +49,10 @@ class WeatherAgent(BaseAgent):
                 },
             )
             resp.raise_for_status()
-            data = resp.json()
+            data: dict[str, Any] = resp.json()
 
-        wind = data.get("wind", {})
-        main = data.get("main", {})
+        wind = data.get("wind", {}) or {}
+        main = data.get("main", {}) or {}
         wind_speed = float(wind.get("speed", 0))
         wind_direction = float(wind.get("deg", 0))
         humidity = float(main.get("humidity", 50))
