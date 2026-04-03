@@ -1,63 +1,69 @@
-import { useState, useEffect } from 'react'
-import { Radio, AlertTriangle, Zap, ChevronRight } from 'lucide-react'
+import { Radio, AlertTriangle, Zap, Wind, Droplets, ChevronRight } from 'lucide-react'
 import { useTheme } from '../context/ThemeContext'
-
-interface StatCard {
-  icon: React.ReactNode
-  label: string
-  value: string
-  color: string
-}
+import { usePipeline } from '../context/PipelineContext'
 
 export default function StatsPanel() {
   const { theme } = useTheme()
-  const dark = theme === 'dark'
-  const [latency, setLatency] = useState(1.2)
+  const dark = theme === 'dark' || theme === 'verizon'
+  const { cameras, pipelineResult } = usePipeline()
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLatency(prev => {
-        const jitter = (Math.random() - 0.5) * 0.4
-        return Math.max(0.5, Math.min(3, prev + jitter))
-      })
-    }, 3000)
-    return () => clearInterval(interval)
-  }, [])
+  const onlineCount = cameras.filter(c => c.online).length
+  const weather = pipelineResult?.weather
+  const classification = pipelineResult?.classification
+  const alertCount = classification ? 1 : 0
 
-  const stats: StatCard[] = [
+  const totalLatency =
+    (pipelineResult?.camera?.latency_ms ?? 0) +
+    (pipelineResult?.satellite?.latency_ms ?? 0) +
+    (pipelineResult?.weather?.latency_ms ?? 0)
+  const avgLatency = pipelineResult ? totalLatency / 3 : 0
+
+  const stats = [
     {
-      icon: <Radio className="h-4 w-4" />,
+      icon: <Radio className="h-5 w-5" />,
       label: 'Active Nodes',
-      value: '2/4',
+      value: `${onlineCount}/${cameras.length}`,
       color: 'text-blue-400',
     },
     {
-      icon: <AlertTriangle className="h-4 w-4" />,
+      icon: <AlertTriangle className="h-5 w-5" />,
       label: 'Total Alerts',
-      value: '0',
-      color: 'text-amber-400',
+      value: String(alertCount),
+      color: alertCount > 0 ? 'text-red-400' : 'text-amber-400',
     },
     {
-      icon: <Zap className="h-4 w-4" />,
+      icon: <Zap className="h-5 w-5" />,
       label: 'Avg Latency',
-      value: `${latency.toFixed(1)}s`,
+      value: pipelineResult ? `${(avgLatency / 1000).toFixed(1)}s` : '—',
       color: 'text-emerald-400',
+    },
+    {
+      icon: <Wind className="h-5 w-5" />,
+      label: 'Wind Speed',
+      value: weather ? `${weather.wind_speed.toFixed(1)} m/s` : '—',
+      color: 'text-cyan-400',
+    },
+    {
+      icon: <Droplets className="h-5 w-5" />,
+      label: 'Humidity',
+      value: weather ? `${weather.humidity.toFixed(0)}%` : '—',
+      color: weather && weather.humidity < 25 ? 'text-red-400' : 'text-sky-400',
     },
   ]
 
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-5 gap-3">
       {stats.map(stat => (
         <div
           key={stat.label}
-          className={`rounded-xl border px-4 py-3 flex items-center justify-between ${
+          className={`rounded-xl border px-4 py-3.5 flex items-center justify-between ${
             dark ? 'bg-[#111] border-[#1e1e1e]' : 'bg-white border-gray-200'
           }`}
         >
           <div className="flex items-center gap-3">
-            <div className={`${stat.color}`}>{stat.icon}</div>
+            <div className={stat.color}>{stat.icon}</div>
             <div>
-              <p className={`text-[10px] uppercase tracking-wider ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
+              <p className={`text-xs uppercase tracking-wider ${dark ? 'text-gray-500' : 'text-gray-400'}`}>
                 {stat.label}
               </p>
               <p className={`text-xl font-bold ${dark ? 'text-white' : 'text-gray-900'}`}>

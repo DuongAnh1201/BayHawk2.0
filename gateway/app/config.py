@@ -75,6 +75,11 @@ class Settings:
     # Output – webhook URL for dashboard / push notifications
     dashboard_webhook_url: str = os.getenv("DASHBOARD_WEBHOOK_URL", "")
 
+    # Twilio SMS — emergency alert delivery
+    twilio_account_sid: str = os.getenv("TWILIO_ACCOUNT_SID", "")
+    twilio_auth_token: str = os.getenv("TWILIO_AUTH_TOKEN", "")
+    twilio_from_number: str = os.getenv("TWILIO_FROM_NUMBER", "")
+
     # Mock mode – bypasses external API / LLM calls where agents support it (local dev / tests)
     is_mock: bool = os.getenv("IS_MOCK", "false").lower() == "true"
 

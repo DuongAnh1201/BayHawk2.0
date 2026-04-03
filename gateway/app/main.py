@@ -6,6 +6,7 @@ from app.db.session import init_db
 from app.config import settings
 from app.routers.auth import router as auth_router
 from app.routers.ai import router as ai_router
+from app.routers.sms import router as sms_router
 from fastapi.middleware.cors import CORSMiddleware
 
 
@@ -25,6 +26,7 @@ app = FastAPI(
 )
 app.include_router(auth_router)
 app.include_router(ai_router)
+app.include_router(sms_router)
 
 @app.get("/health")
 async def health():
