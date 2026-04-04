@@ -254,33 +254,39 @@ if "drone_dispatches" not in st.session_state:
     st.session_state.drone_dispatches = []
 
 theme = THEMES[st.session_state.theme]
+t_bg = theme["bg"]
+t_card = theme["card"]
+t_border = theme["border"]
+t_text = theme["text"]
+t_muted = theme["muted"]
+t_brand = theme["brand"]
 
 # ── Custom CSS ───────────────────────────────────────────────────────────────
 
 st.markdown(f"""
 <style>
     .stApp {{
-        background-color: {theme["bg"]};
+        background-color: {t_bg};
     }}
     .block-container {{
         padding-top: 1rem;
     }}
     .metric-card {{
-        background: {theme["card"]};
-        border: 1px solid {theme["border"]};
+        background: {t_card};
+        border: 1px solid {t_border};
         border-radius: 12px;
         padding: 16px;
         margin-bottom: 8px;
     }}
     .metric-label {{
-        color: {theme["muted"]};
+        color: {t_muted};
         font-size: 11px;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.1em;
     }}
     .metric-value {{
-        color: {theme["text"]};
+        color: {t_text};
         font-size: 24px;
         font-weight: 700;
     }}
@@ -309,9 +315,9 @@ st.markdown(f"""
         50% {{ opacity: 0.8; }}
     }}
     .observation-item {{
-        color: {theme["text"]};
+        color: {t_text};
         padding: 6px 0;
-        border-bottom: 1px solid {theme["border"]};
+        border-bottom: 1px solid {t_border};
         font-size: 13px;
     }}
     .phase-item {{
@@ -321,23 +327,23 @@ st.markdown(f"""
         font-size: 13px;
     }}
     .phase-active {{
-        background: {theme["brand"]}22;
-        border: 1px solid {theme["brand"]}44;
+        background: {t_brand}22;
+        border: 1px solid {t_brand}44;
     }}
     .phase-done {{
         background: #10b98122;
         border: 1px solid #10b98144;
     }}
     .phase-pending {{
-        background: {theme["card"]};
-        border: 1px solid {theme["border"]};
+        background: {t_card};
+        border: 1px solid {t_border};
         opacity: 0.4;
     }}
     h1, h2, h3, h4, h5, h6, p, span, div, label {{
-        color: {theme["text"]} !important;
+        color: {t_text} !important;
     }}
     .stSelectbox label, .stRadio label {{
-        color: {theme["muted"]} !important;
+        color: {t_muted} !important;
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -346,7 +352,7 @@ st.markdown(f"""
 
 with st.sidebar:
     st.image("logo.png", width=60)
-    st.markdown(f"### Wildfire Watch <span style='color:{theme[\"brand\"]}'>MVP</span>", unsafe_allow_html=True)
+    st.markdown(f"### Wildfire Watch <span style='color:{t_brand}'>MVP</span>", unsafe_allow_html=True)
     st.caption("🟢 System Operational")
 
     st.divider()
@@ -380,8 +386,8 @@ with st.sidebar:
         st.markdown(
             f"<div class='metric-card'>"
             f"<div class='metric-label'>{ds['code']}</div>"
-            f"<div style='color:{theme[\"text\"]};font-weight:600;font-size:14px'>{ds['name']}</div>"
-            f"<div style='color:{theme[\"muted\"]};font-size:12px'>"
+            f"<div style='color:{t_text};font-weight:600;font-size:14px'>{ds['name']}</div>"
+            f"<div style='color:{t_muted};font-size:12px'>"
             f"{ds['drones']} drones · W:{ds['water']} S:{ds['smoke']}"
             f"{'  R:' + str(ds['retardant']) if ds['retardant'] > 0 else ''}"
             f"</div></div>",
@@ -506,7 +512,7 @@ with tab_main:
         st.markdown(f"<div class='metric-card'><div class='metric-label'>Classification</div>"
                      f"<div style='margin-top:8px'>"
                      f"<span class='status-badge' style='background:{crit_color}22;color:{crit_color}'>{scenario['criticality']}</span>"
-                     f"<span style='margin-left:12px;font-size:20px;font-weight:700;color:{theme[\"text\"]}'>{scenario['score'] * 100:.0f}%</span>"
+                     f"<span style='margin-left:12px;font-size:20px;font-weight:700;color:{t_text}'>{scenario['score'] * 100:.0f}%</span>"
                      f"</div></div>", unsafe_allow_html=True)
 
     with col_obs:
@@ -564,8 +570,8 @@ with tab_drone:
                     f"<div class='metric-card'>"
                     f"<div style='display:flex;justify-content:space-between;align-items:center'>"
                     f"<div>"
-                    f"<div style='font-weight:700;font-size:15px;color:{theme[\"text\"]}'>{ds['name']}</div>"
-                    f"<div style='color:{theme[\"muted\"]};font-size:12px'>{ds['code']} · {ds['lat']:.3f}°N, {abs(ds['lon']):.3f}°W</div>"
+                    f"<div style='font-weight:700;font-size:15px;color:{t_text}'>{ds['name']}</div>"
+                    f"<div style='color:{t_muted};font-size:12px'>{ds['code']} · {ds['lat']:.3f}°N, {abs(ds['lon']):.3f}°W</div>"
                     f"</div>"
                     f"<span class='status-badge' style='background:#10b98122;color:#10b981'>OPERATIONAL</span>"
                     f"</div>"
@@ -749,7 +755,7 @@ with tab_deesc:
                     st.markdown(
                         f"<div class='phase-item {css_class}'>"
                         f"{status_icon} <strong>{phase['phase']}</strong><br>"
-                        f"<span style='font-size:12px;color:{theme[\"muted\"]}'>{phase['description']}</span>"
+                        f"<span style='font-size:12px;color:{t_muted}'>{phase['description']}</span>"
                         f"</div>",
                         unsafe_allow_html=True,
                     )
@@ -822,7 +828,7 @@ with tab_deesc:
 
 st.markdown("---")
 st.markdown(
-    f"<div style='text-align:center;color:{theme[\"muted\"]};font-size:12px;padding:8px'>"
+    f"<div style='text-align:center;color:{t_muted};font-size:12px;padding:8px'>"
     f"Wildfire Watch MVP — BayHawk 2.0 · AI-Powered Wildfire Detection & Drone Response"
     f"</div>",
     unsafe_allow_html=True,
